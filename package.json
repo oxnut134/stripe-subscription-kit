@@ -1,0 +1,38 @@
+{
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "stripe": "^22.6.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "stripe": "^22.6.2"
+  },
+  "name": "stripe-subscription-kit",
+  "version": "0.1.0",
+  "description": "Framework-agnostic Stripe subscription toolkit (checkout, webhook verification, portal)",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
+  },
+  "keywords": [
+    "stripe",
+    "subscription",
+    "webhook",
+    "nextjs"
+  ],
+  "license": "MIT"
+}
