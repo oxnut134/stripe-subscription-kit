@@ -11,7 +11,7 @@
     "stripe": "^22.6.2"
   },
   "name": "stripe-subscription-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic Stripe subscription toolkit (checkout, webhook verification, portal)",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
