@@ -1,5 +1,7 @@
 // src/types.ts
 
+import type Stripe from "stripe";
+
 export type CreateCheckoutSessionParams = {
   priceId: string;
   customerId?: string;
@@ -33,6 +35,7 @@ export type SubscriptionUpdatedData = {
   customerId: string;
   subscriptionId: string;
   priceId: string;
+  status: Stripe.Subscription.Status;
   metadata?: Record<string, string>;
 };
 

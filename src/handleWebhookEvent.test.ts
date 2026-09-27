@@ -54,11 +54,12 @@ describe("handleWebhookEvent", () => {
     expect(result).toEqual({ handled: true, type: "checkout.session.completed" });
   });
 
-  it("calls onSubscriptionUpdated with customerId, subscriptionId, and priceId on customer.subscription.updated", async () => {
+  it("calls onSubscriptionUpdated with customerId, subscriptionId, priceId, and status on customer.subscription.updated", async () => {
     const event = makeEvent("customer.subscription.updated", {
       id: "sub_123",
       object: "subscription",
       customer: "cus_123",
+      status: "past_due",
       metadata: { plan: "pro" },
       items: {
         object: "list",
@@ -72,6 +73,7 @@ describe("handleWebhookEvent", () => {
       customerId: "cus_123",
       subscriptionId: "sub_123",
       priceId: "price_789",
+      status: "past_due",
       metadata: { plan: "pro" },
     });
     expect(result).toEqual({ handled: true, type: "customer.subscription.updated" });

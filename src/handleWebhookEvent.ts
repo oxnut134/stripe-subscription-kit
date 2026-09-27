@@ -36,6 +36,7 @@ export async function handleWebhookEvent(
         customerId: subscription.customer as string,
         subscriptionId: subscription.id,
         priceId: subscription.items.data[0]?.price.id ?? "",
+        status: subscription.status,
         metadata: subscription.metadata ?? undefined,
       };
       await handlers.onSubscriptionUpdated(data);
