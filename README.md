@@ -27,6 +27,37 @@ npm install stripe-subscription-kit
 - **Event dispatch handled for you** — `handleWebhookEvent` switches on the Stripe event type and calls the matching callback, so callers just implement `WebhookHandlers` instead of writing a `switch` statement.
 - **Delegates plan changes and cancellation to the Stripe Customer Portal** — no need to build your own billing UI; `createPortalSession` hands the customer off to Stripe-hosted self-service.
 
+## How it works
+
+```mermaid
+sequenceDiagram
+    participant User as User (Browser)
+    participant App as Your App (e.g. Next.js)
+    participant Kit as stripe-subscription-kit
+    participant Stripe
+
+    User->>App: Click "Subscribe"
+    App->>Kit: createCheckoutSession(params, stripe)
+    Kit->>Stripe: checkout.sessions.create()
+    Stripe-->>Kit: session.url
+    Kit-->>App: { url }
+    App-->>User: Redirect to Stripe Checkout
+    User->>Stripe: Complete payment
+
+    Stripe->>App: POST /api/webhook (checkout.session.completed)
+    App->>Kit: verifyWebhookEvent(payload, signature, secret, stripe)
+    Kit-->>App: { success: true, event }
+    App->>Kit: handleWebhookEvent(event, handlers)
+    Kit->>App: handlers.onSubscriptionActive(data)
+    App->>App: Save to your DB
+    App-->>Stripe: 200 OK
+```
+
+- **A library, not a server** — the kit is a set of functions called from inside your app. It does not run as a separate process or expose any endpoints of its own.
+- **Your app receives the webhooks** — Stripe sends webhook requests to your app's endpoint. The kit only verifies the signature and turns the raw event into structured data inside that request handler.
+- **Outgoing Stripe API calls use your Stripe instance** — `createCheckoutSession` and `createPortalSession` call the Stripe API through the `stripe` instance your app passes in. This is the only communication from the kit to Stripe.
+- **You write the callbacks, the kit calls them back** — your app passes `WebhookHandlers` to `handleWebhookEvent`, and the kit invokes the one that matches the event. Event names such as `checkout.session.completed` are defined by Stripe; callback names such as `onSubscriptionActive` are defined by the kit.
+
 ## Quick Start
 
 ### 1. Create a Checkout Session

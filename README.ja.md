@@ -27,6 +27,37 @@ npm install stripe-subscription-kit
 - **イベント振り分けを肩代わり** — `handleWebhookEvent` がStripeイベントの種別を見て対応するコールバックを呼び出すため、呼び出し側は `switch` 文を書かずに `WebhookHandlers` を実装するだけで済みます。
 - **プラン変更・キャンセルはStripe Customer Portalに委譲** — 自前の課金管理UIを作る必要はなく、`createPortalSession` でStripeがホストするセルフサービス画面に顧客を送るだけです。
 
+## 仕組み
+
+```mermaid
+sequenceDiagram
+    participant User as User (Browser)
+    participant App as Your App (e.g. Next.js)
+    participant Kit as stripe-subscription-kit
+    participant Stripe
+
+    User->>App: Click "Subscribe"
+    App->>Kit: createCheckoutSession(params, stripe)
+    Kit->>Stripe: checkout.sessions.create()
+    Stripe-->>Kit: session.url
+    Kit-->>App: { url }
+    App-->>User: Redirect to Stripe Checkout
+    User->>Stripe: Complete payment
+
+    Stripe->>App: POST /api/webhook (checkout.session.completed)
+    App->>Kit: verifyWebhookEvent(payload, signature, secret, stripe)
+    Kit-->>App: { success: true, event }
+    App->>Kit: handleWebhookEvent(event, handlers)
+    Kit->>App: handlers.onSubscriptionActive(data)
+    App->>App: Save to your DB
+    App-->>Stripe: 200 OK
+```
+
+- **独立したサーバーではなくライブラリ** — kitは、アプリの中から呼び出される関数の集まりです。別プロセスとして動いたり、独自のエンドポイントを持ったりはしません。
+- **webhookを受け取るのはアプリ** — Stripeはアプリのエンドポイントにwebhookを送ります。kitは、アプリのリクエスト処理の中で、署名の検証と、イベントを扱いやすいデータに整理する役割だけを担います。
+- **Stripe APIの呼び出しは、アプリから渡されたStripeインスタンス経由** — `createCheckoutSession` と `createPortalSession` は、アプリが渡した `stripe` インスタンスを通してStripe APIを呼び出します。kitからStripeへの通信は、これだけです。
+- **コールバックはアプリが書き、kitが呼び返す** — アプリは `WebhookHandlers` を `handleWebhookEvent` に渡し、kitはイベントに対応するものを呼び出します。`checkout.session.completed` などのイベント名はStripeが定めたもので、`onSubscriptionActive` などのコールバック名はkitが付けた名前です。
+
 ## クイックスタート
 
 ### 1. Checkout Sessionの作成
