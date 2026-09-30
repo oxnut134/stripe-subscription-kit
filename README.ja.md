@@ -10,16 +10,6 @@ Checkout・webhook検証・Billing Portalをまとめた、フレームワーク
 npm install stripe-subscription-kit
 ```
 
-> **近日npm公開予定です。** このパッケージはまだ公開されていません。ローカルで開発中に利用する場合は、利用側プロジェクトの `package.json` で `file:` 参照を使ってください。
->
-> ```json
-> {
->   "dependencies": {
->     "stripe-subscription-kit": "file:../stripe-subscription-kit"
->   }
-> }
-> ```
-
 ## 特徴
 
 - **フレームワーク非依存** — Next.jsだけでなく、Express など他のNode.jsフレームワークでも動作します。
@@ -28,6 +18,13 @@ npm install stripe-subscription-kit
 - **プラン変更・キャンセルはStripe Customer Portalに委譲** — 自前の課金管理UIを作る必要はなく、`createPortalSession` でStripeがホストするセルフサービス画面に顧客を送るだけです。
 
 ## 仕組み
+
+サブスクリプションには、次の2つの場面があります。
+
+- **申し込み（初回）** — ユーザーがCheckoutページでカードを入力して支払い、契約が始まる場面です。ユーザーの操作から始まります。
+- **自動更新（2回目以降）** — 請求期間が終わるたびに、Stripeが保存済みのカードに自動で請求する場面です。ユーザーの操作もアプリからの呼び出しもなく、Stripe側から始まります。アプリが請求の結果を知る手段は、webhookだけです。
+
+### 申し込み（初回）の流れ
 
 ```mermaid
 sequenceDiagram
@@ -42,7 +39,7 @@ sequenceDiagram
     Stripe-->>Kit: session.url
     Kit-->>App: { url }
     App-->>User: Redirect to Stripe Checkout
-    User->>Stripe: Complete payment
+    User->>Stripe: Enter card & pay on Checkout page
 
     Stripe->>App: POST /api/webhook (checkout.session.completed)
     App->>Kit: verifyWebhookEvent(payload, signature, secret, stripe)
@@ -52,6 +49,45 @@ sequenceDiagram
     App->>App: Save to your DB
     App-->>Stripe: 200 OK
 ```
+
+### 自動更新（2回目以降）の流れ
+
+```mermaid
+sequenceDiagram
+    participant App as Your App (e.g. Next.js)
+    participant Kit as stripe-subscription-kit
+    participant Stripe
+
+    Note over Stripe: Billing period ends
+    Stripe->>Stripe: Charge the saved card
+
+    alt Payment succeeded
+        Stripe->>App: POST /api/webhook (customer.subscription.updated)
+        App->>Kit: verifyWebhookEvent(payload, signature, secret, stripe)
+        Kit-->>App: { success: true, event }
+        App->>Kit: handleWebhookEvent(event, handlers)
+        Kit->>App: handlers.onSubscriptionUpdated(data)
+        Note over App: data.status is "active"
+        App->>App: Update your DB
+        App-->>Stripe: 200 OK
+    else Payment failed
+        Stripe->>App: POST /api/webhook (invoice.payment_failed)
+        App->>Kit: verifyWebhookEvent + handleWebhookEvent
+        Kit->>App: handlers.onPaymentFailed(data)
+        App->>App: Update your DB
+        App-->>Stripe: 200 OK
+        Stripe->>App: POST /api/webhook (customer.subscription.updated)
+        App->>Kit: verifyWebhookEvent + handleWebhookEvent
+        Kit->>App: handlers.onSubscriptionUpdated(data)
+        Note over App: data.status is "past_due"
+        App->>App: Update your DB
+        App-->>Stripe: 200 OK
+    end
+```
+
+請求に成功すると、請求期間が更新されたことが `customer.subscription.updated` で通知され、`onSubscriptionUpdated` が呼ばれます。請求に失敗すると、`invoice.payment_failed` で `onPaymentFailed` が呼ばれます。あわせて、契約の状態が `past_due` に変わったことが `customer.subscription.updated` で通知され、`onSubscriptionUpdated` も呼ばれます。この2つのイベントが届く順番は保証されないため、どちらが先に届いても正しく動くように処理してください。どちらの場合も、kitはStripeからの通知を検証して振り分けるだけで、請求そのものはStripeが行います。
+
+### kitの役割
 
 - **独立したサーバーではなくライブラリ** — kitは、アプリの中から呼び出される関数の集まりです。別プロセスとして動いたり、独自のエンドポイントを持ったりはしません。
 - **webhookを受け取るのはアプリ** — Stripeはアプリのエンドポイントにwebhookを送ります。kitは、アプリのリクエスト処理の中で、署名の検証と、イベントを扱いやすいデータに整理する役割だけを担います。
